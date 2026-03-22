@@ -6,42 +6,35 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-blockchain = Blockchain()
+bc = Blockchain()
 
 @app.route("/")
 def home():
-    return "Blockchain API Running 🚀"
+    return "API Running 🚀"
 
-@app.route("/chain", methods=["GET"])
-def get_chain():
-    data = []
-    for block in blockchain.chain:
-        data.append({
-            "index": block.index,
-            "transactions": block.transactions,
-            "hash": block.hash,
-            "prev_hash": block.prev_hash
-        })
-    return jsonify(data)
+@app.route("/wallet", methods=["POST"])
+def wallet():
+    return jsonify(bc.create_wallet())
 
-@app.route("/add", methods=["POST"])
-def add_block():
-    data = request.get_json()
+@app.route("/wallets")
+def wallets():
+    return jsonify(bc.wallets)
 
-    if not data or "data" not in data:
-        return jsonify({"error": "Invalid request"}), 400
+@app.route("/transaction", methods=["POST"])
+def tx():
+    d = request.json
+    ok = bc.add_tx(d["sender"], d["receiver"], d["amount"])
+    return jsonify({"success": ok})
 
-    tx = data["data"]
-    blockchain.add_block([tx])
+@app.route("/mine", methods=["POST"])
+def mine():
+    miner = request.json["miner"]
+    b = bc.mine(miner)
+    return jsonify({"index": b.index})
 
-    return jsonify({"message": "Block added successfully"})
+@app.route("/chain")
+def chain():
+    return jsonify(bc.get_chain())
 
-@app.route("/validate", methods=["GET"])
-def validate():
-    return jsonify({"valid": blockchain.is_valid()})
-
-
-# 🔥 IMPORTANT FOR LOCAL RUN ONLY
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",10000)))
