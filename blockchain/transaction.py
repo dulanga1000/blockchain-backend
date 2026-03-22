@@ -28,4 +28,5 @@ class Transaction:
             return False
 
         data = json.dumps(self.to_dict(), sort_keys=True)
+
         return verify_signature(self.sender, data, self.signature)
