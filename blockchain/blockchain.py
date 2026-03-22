@@ -19,6 +19,9 @@ class Blockchain:
             "previous_hash": previous_hash
         }
 
+        # ✅ CALCULATE CURRENT HASH
+        block["hash"] = self.hash(block)
+
         self.transactions = []
         self.chain.append(block)
 
@@ -28,12 +31,18 @@ class Blockchain:
         self.transactions.append(transaction)
 
     def hash(self, block):
-        encoded = json.dumps(block, sort_keys=True).encode()
+        # ❗ IMPORTANT: remove hash before hashing
+        block_copy = dict(block)
+        block_copy.pop("hash", None)
+
+        encoded = json.dumps(block_copy, sort_keys=True).encode()
         return hashlib.sha256(encoded).hexdigest()
 
     def mine_block(self):
         previous_block = self.chain[-1]
-        previous_hash = self.hash(previous_block)
+
+        # ✅ USE PREVIOUS BLOCK HASH
+        previous_hash = previous_block["hash"]
 
         proof = 1
         while True:
