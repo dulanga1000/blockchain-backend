@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-from pymongo import MongoClient 
+from pymongo import MongoClient
+
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from blockchain.blockchain import Blockchain
 from blockchain.wallet import Wallet
@@ -10,16 +12,14 @@ from blockchain.transaction import Transaction
 app = Flask(__name__)
 CORS(app)
 
-MONGO_URI = os.environ.get("MONGO_URI")
 
+MONGO_URI = os.environ.get("MONGO_URI")
 
 client = MongoClient(MONGO_URI)
 db = client["blockchain_db"] 
 
-
 users_collection = db["users"]
 chain_collection = db["chain"]
-
 
 blockchain = Blockchain(chain_collection)
 
@@ -37,7 +37,6 @@ def create_wallet():
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
         
-
     if users_collection.find_one({"username": username}):
         return jsonify({"error": f"User '{username}' already exists!"}), 400
 
@@ -47,14 +46,16 @@ def create_wallet():
     blockchain.add_transaction(tx.to_dict())
     blockchain.mine_block() 
     
+
+    hashed_password = generate_password_hash(password)
+    
     wallet_data = {
         "username": username,
-        "password": password, 
+        "password": hashed_password,
         "public_key": wallet.public_key,
         "private_key": wallet.private_key
     }
     
-
     users_collection.insert_one(wallet_data.copy())
     
     response_data = {
@@ -71,13 +72,13 @@ def login():
     username = data.get("username")
     password = data.get("password") 
     
-
     user_data = users_collection.find_one({"username": username})
     
     if not user_data:
         return jsonify({"error": "User not found. Please register first."}), 404
         
-    if user_data["password"] != password:
+
+    if not check_password_hash(user_data["password"], password):
         return jsonify({"error": "Incorrect password. Access denied."}), 401
         
     balance = blockchain.get_balance(user_data['public_key'])
@@ -93,7 +94,6 @@ def login():
 def get_wallets():
     wallets_list = []
     
-
     all_users = users_collection.find({}, {"_id": 0, "private_key": 0, "password": 0})
     
     for user in all_users:
