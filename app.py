@@ -28,6 +28,7 @@ def create_wallet():
 
     wallet = Wallet()
     
+    # Issue 10,000 coins to new user
     tx = Transaction(sender="SYSTEM", receiver=wallet.public_key, amount=10000)
     blockchain.add_transaction(tx.to_dict())
     blockchain.mine_block() 
@@ -39,8 +40,32 @@ def create_wallet():
     }
     
     users_db[username] = wallet_data
-    return jsonify(wallet_data)
+    
+    # Return balance with creation
+    response_data = dict(wallet_data)
+    response_data["balance"] = blockchain.get_balance(wallet.public_key)
+    return jsonify(response_data)
 
+# ✅ NEW: LOGIN SYSTEM
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    
+    if not username or username not in users_db:
+        return jsonify({"error": "User not found. Please register first."}), 404
+        
+    user_data = users_db[username]
+    balance = blockchain.get_balance(user_data['public_key'])
+    
+    return jsonify({
+        "username": username,
+        "public_key": user_data['public_key'],
+        "private_key": user_data['private_key'],
+        "balance": balance
+    })
+
+# ✅ UPDATED: PUBLIC DIRECTORY (Hides Private Keys!)
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
     wallets_list = []
@@ -49,8 +74,8 @@ def get_wallets():
         wallets_list.append({
             "username": username,
             "public_key": data['public_key'],
-            "private_key": data['private_key'],
             "balance": balance
+            # NOTICE: private_key is deliberately excluded for security!
         })
     return jsonify(wallets_list)
 
@@ -64,7 +89,7 @@ def add_transaction():
     private_key = data.get("private_key") 
 
     if not sender or not receiver or not amount or not private_key:
-        return jsonify({"error": "Missing fields. Public keys, amount, and private key required."}), 400
+        return jsonify({"error": "Missing fields."}), 400
 
     sender_balance = blockchain.get_balance(sender)
     if sender_balance < amount:
@@ -78,24 +103,18 @@ def add_transaction():
             return jsonify({"error": "Cryptographic Verification Failed! Invalid Signature."}), 403
             
         blockchain.add_transaction(transaction.to_dict())
-
         return jsonify({"message": "Transaction cryptographically verified and added to mempool!"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    block = blockchain.mine_block()
-    return jsonify(block)
+    return jsonify(blockchain.mine_block())
 
 @app.route('/chain', methods=['GET'])
 def get_chain():
-    return jsonify({
-        "chain": blockchain.chain,
-        "length": len(blockchain.chain)
-    })
+    return jsonify({"chain": blockchain.chain, "length": len(blockchain.chain)})
 
-# ✅ NEW: Endpoint to check if blockchain is valid
 @app.route('/validate', methods=['GET'])
 def validate_chain():
     is_valid = blockchain.is_chain_valid(blockchain.chain)
@@ -104,7 +123,6 @@ def validate_chain():
     else:
         return jsonify({"message": "Warning! Blockchain integrity compromised.", "valid": False})
 
-# ✅ NEW: Endpoint to get balance of a specific public key
 @app.route('/balance/<address>', methods=['GET'])
 def get_balance(address):
     balance = blockchain.get_balance(address)
