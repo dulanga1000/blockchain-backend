@@ -1,4 +1,5 @@
-flask
+Flask
 flask-cors
 ecdsa
+pymongo[srv]
 gunicorn

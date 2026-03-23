@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+from pymongo import MongoClient 
 
 from blockchain.blockchain import Blockchain
 from blockchain.wallet import Wallet
@@ -9,39 +10,52 @@ from blockchain.transaction import Transaction
 app = Flask(__name__)
 CORS(app)
 
-blockchain = Blockchain()
-users_db = {} 
+MONGO_URI = os.environ.get("MONGO_URI")
+
+
+client = MongoClient(MONGO_URI)
+db = client["blockchain_db"] 
+
+
+users_collection = db["users"]
+chain_collection = db["chain"]
+
+
+blockchain = Blockchain(chain_collection)
+
 
 @app.route('/')
 def home():
-    return "🚀 Advanced Cryptographic Blockchain API Running"
+    return "🚀 Advanced Cloud-Connected Blockchain API Running"
 
 @app.route('/create_wallet', methods=['POST'])
 def create_wallet():
     data = request.get_json()
     username = data.get("username")
-    password = data.get("password") # ✅ NEW: Require password
+    password = data.get("password") 
 
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
-    if username in users_db:
+        
+
+    if users_collection.find_one({"username": username}):
         return jsonify({"error": f"User '{username}' already exists!"}), 400
 
     wallet = Wallet()
     
-    # Issue 10,000 coins to new user
     tx = Transaction(sender="SYSTEM", receiver=wallet.public_key, amount=10000)
     blockchain.add_transaction(tx.to_dict())
     blockchain.mine_block() 
     
     wallet_data = {
         "username": username,
-        "password": password, # ✅ NEW: Store password
+        "password": password, 
         "public_key": wallet.public_key,
         "private_key": wallet.private_key
     }
     
-    users_db[username] = wallet_data
+
+    users_collection.insert_one(wallet_data.copy())
     
     response_data = {
         "username": username,
@@ -55,16 +69,17 @@ def create_wallet():
 def login():
     data = request.get_json()
     username = data.get("username")
-    password = data.get("password") # ✅ NEW: Require password
+    password = data.get("password") 
     
-    if not username or username not in users_db:
+
+    user_data = users_collection.find_one({"username": username})
+    
+    if not user_data:
         return jsonify({"error": "User not found. Please register first."}), 404
         
-    # ✅ NEW: Verify password before returning the private key
-    if users_db[username]["password"] != password:
+    if user_data["password"] != password:
         return jsonify({"error": "Incorrect password. Access denied."}), 401
         
-    user_data = users_db[username]
     balance = blockchain.get_balance(user_data['public_key'])
     
     return jsonify({
@@ -77,13 +92,16 @@ def login():
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
     wallets_list = []
-    for username, data in users_db.items():
-        balance = blockchain.get_balance(data['public_key'])
+    
+
+    all_users = users_collection.find({}, {"_id": 0, "private_key": 0, "password": 0})
+    
+    for user in all_users:
+        balance = blockchain.get_balance(user['public_key'])
         wallets_list.append({
-            "username": username,
-            "public_key": data['public_key'],
+            "username": user['username'],
+            "public_key": user['public_key'],
             "balance": balance
-            # Private key and Password are NOT sent here!
         })
     return jsonify(wallets_list)
 
@@ -116,7 +134,10 @@ def add_transaction():
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    return jsonify(blockchain.mine_block())
+    block = blockchain.mine_block()
+    if "_id" in block:
+        del block["_id"]
+    return jsonify(block)
 
 @app.route('/chain', methods=['GET'])
 def get_chain():

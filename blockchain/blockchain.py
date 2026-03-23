@@ -3,11 +3,17 @@ import json
 from time import time
 
 class Blockchain:
-    def __init__(self):
-        self.chain = []
+    def __init__(self, db_collection):
         self.transactions = []
+        self.collection = db_collection
 
-        self.create_block(proof=1, previous_hash='0')
+        db_chain = list(self.collection.find({}, {"_id": 0}).sort("index", 1))
+        
+        if len(db_chain) > 0:
+            self.chain = db_chain
+        else:
+            self.chain = []
+            self.create_block(proof=1, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
         block = {
@@ -18,11 +24,11 @@ class Blockchain:
             "previous_hash": previous_hash
         }
 
-        # ✅ CALCULATE CURRENT HASH
         block["hash"] = self.hash(block)
-
         self.transactions = []
         self.chain.append(block)
+        
+        self.collection.insert_one(block.copy())
 
         return block
 
@@ -32,6 +38,7 @@ class Blockchain:
     def hash(self, block):
         block_copy = dict(block)
         block_copy.pop("hash", None)
+        block_copy.pop("_id", None) 
 
         encoded = json.dumps(block_copy, sort_keys=True).encode()
         return hashlib.sha256(encoded).hexdigest()
@@ -67,19 +74,15 @@ class Blockchain:
                 balance += tx['amount']
         return balance
 
-    # ✅ NEW: Validate the cryptographic integrity of the entire chain
     def is_chain_valid(self, chain):
         previous_block = chain[0]
         block_index = 1
         
         while block_index < len(chain):
             block = chain[block_index]
-            
-            # 1. Check if the previous hash matches the actual hash of the previous block
             if block['previous_hash'] != previous_block['hash']:
                 return False
                 
-            # 2. Check if the Proof of Work is cryptographically valid
             previous_proof = previous_block['proof']
             proof = block['proof']
             hash_operation = hashlib.sha256(
