@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 from pymongo import MongoClient
-
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from blockchain.blockchain import Blockchain
@@ -12,21 +11,16 @@ from blockchain.transaction import Transaction
 app = Flask(__name__)
 CORS(app)
 
-
 MONGO_URI = os.environ.get("MONGO_URI")
-
 client = MongoClient(MONGO_URI)
 db = client["blockchain_db"] 
-
 users_collection = db["users"]
 chain_collection = db["chain"]
-
 blockchain = Blockchain(chain_collection)
-
 
 @app.route('/')
 def home():
-    return "🚀 Advanced Cloud-Connected Blockchain API Running"
+    return "Advanced Cloud-Connected Blockchain API Running"
 
 @app.route('/create_wallet', methods=['POST'])
 def create_wallet():
@@ -41,17 +35,15 @@ def create_wallet():
         return jsonify({"error": f"User '{username}' already exists!"}), 400
 
     wallet = Wallet()
-    
     tx = Transaction(sender="SYSTEM", receiver=wallet.public_key, amount=10000)
     blockchain.add_transaction(tx.to_dict())
     blockchain.mine_block() 
     
-
     hashed_password = generate_password_hash(password)
     
     wallet_data = {
         "username": username,
-        "password": hashed_password,
+        "password": hashed_password, 
         "public_key": wallet.public_key,
         "private_key": wallet.private_key
     }
@@ -77,7 +69,6 @@ def login():
     if not user_data:
         return jsonify({"error": "User not found. Please register first."}), 404
         
-
     if not check_password_hash(user_data["password"], password):
         return jsonify({"error": "Incorrect password. Access denied."}), 401
         
@@ -93,7 +84,6 @@ def login():
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
     wallets_list = []
-    
     all_users = users_collection.find({}, {"_id": 0, "private_key": 0, "password": 0})
     
     for user in all_users:
@@ -155,6 +145,14 @@ def validate_chain():
 def get_balance(address):
     balance = blockchain.get_balance(address)
     return jsonify({"address": address, "balance": balance})
+
+@app.route('/history/<address>', methods=['GET'])
+def get_history(address):
+    try:
+        history = blockchain.get_transaction_history(address)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
