@@ -6,27 +6,52 @@ from blockchain.blockchain import Blockchain
 from blockchain.wallet import Wallet
 from blockchain.transaction import Transaction
 
-# ✅ CREATE APP FIRST
+# ✅ CREATE APP
 app = Flask(__name__)
 CORS(app)
 
 blockchain = Blockchain()
 
-# ✅ ROOT ROUTE
+# 🗄️ IN-MEMORY DATABASE FOR DEMO PURPOSES
+# Maps username -> wallet data
+users_db = {} 
+
 @app.route('/')
 def home():
     return "🚀 Advanced Cryptographic Blockchain API Running"
 
-# ✅ CREATE WALLET (ECDSA CRYPTOGRAPHY)
-@app.route('/create_wallet', methods=['GET'])
+# ✅ CREATE WALLET (NOW REQUIRES USERNAME)
+@app.route('/create_wallet', methods=['POST'])
 def create_wallet():
+    data = request.get_json()
+    username = data.get("username")
+
+    if not username:
+        return jsonify({"error": "Username is required."}), 400
+    if username in users_db:
+        return jsonify({"error": f"User '{username}' already exists!"}), 400
+
+    # Generate real ECDSA keys
     wallet = Wallet()
-    return jsonify({
+    
+    wallet_data = {
+        "username": username,
         "public_key": wallet.public_key,
         "private_key": wallet.private_key
-    })
+    }
+    
+    # Store in our mock database
+    users_db[username] = wallet_data
 
-# ✅ ADD TRANSACTION (DIGITAL SIGNATURES)
+    return jsonify(wallet_data)
+
+# ✅ GET ALL WALLETS (FOR THE DROPDOWN MENUS)
+@app.route('/wallets', methods=['GET'])
+def get_wallets():
+    # Returns a list of all created wallets
+    return jsonify(list(users_db.values()))
+
+# ✅ ADD TRANSACTION
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():
     data = request.get_json()
@@ -68,6 +93,5 @@ def get_chain():
         "length": len(blockchain.chain)
     })
 
-# ✅ RUN
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
