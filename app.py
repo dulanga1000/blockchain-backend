@@ -3,6 +3,8 @@ from flask_cors import CORS
 import os
 
 from blockchain.blockchain import Blockchain
+from blockchain.wallet import Wallet
+from blockchain.transaction import Transaction
 
 # ✅ CREATE APP FIRST
 app = Flask(__name__)
@@ -10,20 +12,21 @@ CORS(app)
 
 blockchain = Blockchain()
 
-
 # ✅ ROOT ROUTE
 @app.route('/')
 def home():
-    return "🚀 Blockchain API Running"
+    return "🚀 Advanced Cryptographic Blockchain API Running"
 
-
-# ✅ CREATE WALLET (optional)
+# ✅ CREATE WALLET (ECDSA CRYPTOGRAPHY)
 @app.route('/create_wallet', methods=['GET'])
 def create_wallet():
-    return jsonify({"message": "Wallet endpoint working"})
+    wallet = Wallet()
+    return jsonify({
+        "public_key": wallet.public_key,
+        "private_key": wallet.private_key
+    })
 
-
-# ✅ ADD TRANSACTION (MANUAL INPUT)
+# ✅ ADD TRANSACTION (DIGITAL SIGNATURES)
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():
     data = request.get_json()
@@ -31,29 +34,31 @@ def add_transaction():
     sender = data.get("sender")
     receiver = data.get("receiver")
     amount = data.get("amount")
+    private_key = data.get("private_key") 
 
-    if not sender or not receiver or not amount:
-        return jsonify({"error": "Missing fields"}), 400
+    if not sender or not receiver or not amount or not private_key:
+        return jsonify({"error": "Missing fields. Public keys, amount, and private key required."}), 400
 
-    transaction = {
-        "sender": sender,
-        "receiver": receiver,
-        "amount": amount
-    }
+    try:
+        transaction = Transaction(sender, receiver, amount)
+        transaction.sign_transaction(private_key)
 
-    blockchain.add_transaction(transaction)
+        if not transaction.is_valid():
+            return jsonify({"error": "Cryptographic Verification Failed! Invalid Signature."}), 403
+            
+        blockchain.add_transaction(transaction.to_dict())
 
-    return jsonify({
-        "message": "Transaction added to mempool"
-    })
-
+        return jsonify({
+            "message": "Transaction cryptographically verified and added to mempool!"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ✅ MINE BLOCK
 @app.route('/mine', methods=['GET'])
 def mine():
     block = blockchain.mine_block()
     return jsonify(block)
-
 
 # ✅ GET CHAIN
 @app.route('/chain', methods=['GET'])
@@ -62,7 +67,6 @@ def get_chain():
         "chain": blockchain.chain,
         "length": len(blockchain.chain)
     })
-
 
 # ✅ RUN
 if __name__ == '__main__':

@@ -1,6 +1,5 @@
 import ecdsa
 
-
 class Wallet:
     def __init__(self):
         sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)

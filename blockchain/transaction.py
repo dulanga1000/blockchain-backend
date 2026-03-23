@@ -1,7 +1,6 @@
 from utils.crypto import sign_data, verify_signature
 import json
 
-
 class Transaction:
     def __init__(self, sender, receiver, amount, signature=None):
         self.sender = sender
