@@ -20,9 +20,10 @@ def home():
 def create_wallet():
     data = request.get_json()
     username = data.get("username")
+    password = data.get("password") # ✅ NEW: Require password
 
-    if not username:
-        return jsonify({"error": "Username is required."}), 400
+    if not username or not password:
+        return jsonify({"error": "Username and password are required."}), 400
     if username in users_db:
         return jsonify({"error": f"User '{username}' already exists!"}), 400
 
@@ -35,25 +36,33 @@ def create_wallet():
     
     wallet_data = {
         "username": username,
+        "password": password, # ✅ NEW: Store password
         "public_key": wallet.public_key,
         "private_key": wallet.private_key
     }
     
     users_db[username] = wallet_data
     
-    # Return balance with creation
-    response_data = dict(wallet_data)
-    response_data["balance"] = blockchain.get_balance(wallet.public_key)
+    response_data = {
+        "username": username,
+        "public_key": wallet.public_key,
+        "private_key": wallet.private_key,
+        "balance": blockchain.get_balance(wallet.public_key)
+    }
     return jsonify(response_data)
 
-# ✅ NEW: LOGIN SYSTEM
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     username = data.get("username")
+    password = data.get("password") # ✅ NEW: Require password
     
     if not username or username not in users_db:
         return jsonify({"error": "User not found. Please register first."}), 404
+        
+    # ✅ NEW: Verify password before returning the private key
+    if users_db[username]["password"] != password:
+        return jsonify({"error": "Incorrect password. Access denied."}), 401
         
     user_data = users_db[username]
     balance = blockchain.get_balance(user_data['public_key'])
@@ -65,7 +74,6 @@ def login():
         "balance": balance
     })
 
-# ✅ UPDATED: PUBLIC DIRECTORY (Hides Private Keys!)
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
     wallets_list = []
@@ -75,14 +83,13 @@ def get_wallets():
             "username": username,
             "public_key": data['public_key'],
             "balance": balance
-            # NOTICE: private_key is deliberately excluded for security!
+            # Private key and Password are NOT sent here!
         })
     return jsonify(wallets_list)
 
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():
     data = request.get_json()
-
     sender = data.get("sender")
     receiver = data.get("receiver")
     amount = data.get("amount")
