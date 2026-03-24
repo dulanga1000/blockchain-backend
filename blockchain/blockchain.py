@@ -8,11 +8,20 @@ class Blockchain:
         self.collection = db_collection
         db_chain = list(self.collection.find({}, {"_id": 0}).sort("index", 1))
         
-        if len(db_chain) > 0:
+        if len(db_chain) > 0 and db_chain[0].get("index") == 1:
             self.chain = db_chain
         else:
+            self.collection.delete_many({})
             self.chain = []
-            self.create_block(proof=1, previous_hash='0')
+            self.create_genesis_block()
+
+    def create_genesis_block(self):
+        self.transactions.append({
+            "sender": "SYSTEM",
+            "receiver": "NETWORK_GENESIS",
+            "amount": 0
+        })
+        self.create_block(proof=1, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
         block = {
@@ -25,7 +34,9 @@ class Blockchain:
         block["hash"] = self.hash(block)
         self.transactions = []
         self.chain.append(block)
+        
         self.collection.insert_one(block.copy())
+        
         return block
 
     def add_transaction(self, transaction):
