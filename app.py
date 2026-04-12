@@ -11,43 +11,27 @@ from blockchain.transaction import Transaction
 app = Flask(__name__)
 CORS(app)
 
-# ==========================
-# 🔐 MongoDB Connection (SAFE)
-# ==========================
 MONGO_URI = os.environ.get("MONGO_URI")
 
 if not MONGO_URI:
-    raise Exception("❌ MONGO_URI not set in environment variables")
+    raise Exception("MONGO_URI not set")
 
 try:
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     db = client["blockchain_db"]
-
     users_collection = db["users"]
     chain_collection = db["chain"]
-
     blockchain = Blockchain(chain_collection)
-
-    print("✅ MongoDB connected successfully")
-
 except Exception as e:
-    print("❌ MongoDB connection failed:", e)
+    print("MongoDB error:", e)
     blockchain = None
 
-
-# ==========================
-# 🏠 Home Route
-# ==========================
 @app.route('/')
 def home():
     if blockchain is None:
-        return "❌ Database not connected"
-    return "🚀 Advanced Cloud Blockchain API Running"
+        return "Database not connected"
+    return "Blockchain API Running"
 
-
-# ==========================
-# 👛 Create Wallet
-# ==========================
 @app.route('/create_wallet', methods=['POST'])
 def create_wallet():
     if blockchain is None:
@@ -87,10 +71,6 @@ def create_wallet():
         "balance": blockchain.get_balance(wallet.public_key)
     })
 
-
-# ==========================
-# 🔐 Login
-# ==========================
 @app.route('/login', methods=['POST'])
 def login():
     if blockchain is None:
@@ -117,10 +97,6 @@ def login():
         "balance": balance
     })
 
-
-# ==========================
-# 👥 Get Wallets
-# ==========================
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
     if blockchain is None:
@@ -139,10 +115,6 @@ def get_wallets():
 
     return jsonify(wallets_list)
 
-
-# ==========================
-# 💸 Add Transaction
-# ==========================
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():
     if blockchain is None:
@@ -175,10 +147,6 @@ def add_transaction():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ==========================
-# ⛏ Mine Block
-# ==========================
 @app.route('/mine', methods=['GET'])
 def mine():
     if blockchain is None:
@@ -190,10 +158,6 @@ def mine():
 
     return jsonify(block)
 
-
-# ==========================
-# 🔗 Get Chain
-# ==========================
 @app.route('/chain', methods=['GET'])
 def get_chain():
     if blockchain is None:
@@ -204,25 +168,26 @@ def get_chain():
         "length": len(blockchain.chain)
     })
 
-
-# ==========================
-# ✅ Validate Chain
-# ==========================
 @app.route('/validate', methods=['GET'])
 def validate_chain():
     if blockchain is None:
-        return jsonify({"error": "Database not connected"}), 500
+        return jsonify({"valid": False, "message": "Database not connected"}), 500
 
     is_valid = blockchain.is_chain_valid(blockchain.chain)
 
-    return jsonify({
-        "valid": is_valid
-    })
+    if is_valid:
+        return jsonify({
+            "valid": True,
+            "message": "Blockchain is secure and valid",
+            "status": "OK"
+        })
+    else:
+        return jsonify({
+            "valid": False,
+            "message": "Blockchain integrity compromised",
+            "status": "ERROR"
+        }), 400
 
-
-# ==========================
-# 💰 Balance
-# ==========================
 @app.route('/balance/<address>', methods=['GET'])
 def get_balance(address):
     if blockchain is None:
@@ -233,10 +198,6 @@ def get_balance(address):
         "balance": blockchain.get_balance(address)
     })
 
-
-# ==========================
-# 📜 History
-# ==========================
 @app.route('/history/<address>', methods=['GET'])
 def get_history(address):
     if blockchain is None:
@@ -248,9 +209,5 @@ def get_history(address):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ==========================
-# ▶️ Run App
-# ==========================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
